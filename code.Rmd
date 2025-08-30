@@ -1,5 +1,5 @@
 ---
-title: "Final Project"
+title: "Predicting Body Weight from Anthropometric Measurements using Linear Regression Analysis"
 author: "Shihan Wang"
 date: "2023-06-13"
 output: pdf_document
