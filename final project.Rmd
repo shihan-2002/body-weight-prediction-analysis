@@ -1,0 +1,192 @@
+---
+title: "Final Project"
+author: "Shihan Wang"
+date: "2023-06-13"
+output: pdf_document
+---
+
+```{r}
+# install required packages
+install.packages("car", repos = "http://cran.us.r-project.org")
+library(car)
+```
+
+```{r}
+# import data set and omit NA values
+bodyfat <- read.csv("~/Desktop/bodyfat.csv", header = T)
+weight_dataset <- na.omit(bodyfat)
+```
+
+```{r}
+# make this sample reproducible and split data set into train set (70%) and test set (30%)
+set.seed(975)
+
+sample <- sample(c(TRUE, FALSE), nrow(weight_dataset), replace=TRUE, prob=c(0.7,0.3))
+train <- weight_dataset[sample, ]
+test <- weight_dataset[!sample, ]
+```
+
+```{r}
+# Histogram and box plot of the response variable Weight
+
+par(mfrow=c(1,2))
+hist(train$Weight, main = "Histrogram of Weight", xlab = "Weight (lbs)", breaks=20)
+boxplot(train$Weight, main = "Boxplot of Weight", ylab = "Weight (lbs)")
+
+# Numerical summary
+summary(train$Weight)
+
+# The response variable is approximately normal distributed, and we can observe an outlier (Weight = 363.15 lbs).
+```
+
+```{r}
+# Full model with all predictor variable in the data set
+Model1 <- lm(Weight~., data=train)
+summary(Model1)
+
+summary(Model1)$r.squared
+
+# R^2 = 0.9766775. We can observe a significant relationship existing between weight and predictor variables.
+```
+
+```{r}
+# F test. Build a reduced model.
+# Model 2: removing all non significant variables
+
+Model2 <- lm(Weight~Height+Chest+Hip, data=train)
+anova(Model2, Model1)
+
+Model3 <- lm(Weight~Height+Chest+Hip+Age+Neck+Abdomen+Knee+Ankle+Biceps, data=train)
+anova(Model3, Model1)
+
+# p value = 1.52e-14 < 0.05. 
+# Our null hypothesis is rejected, so we cannot remove all non significant variables simultaneously.
+```
+
+```{r}
+# F-test
+# Model 3: try to remove some of non significant variables with greater Pr(>|t|).
+
+Model3 <- lm(Weight~Height+Chest+Hip+Age+Neck+Abdomen+Knee+Ankle+Biceps, data=train)
+anova(Model3, Model1)
+
+# p value = 0.2065 > 0.05, we can remove these significant variables with greater Pr(>|t|).
+```
+
+```{r}
+# Summary of Model 3
+summary(Model3)
+vif(Model3)
+
+# We can observe that VIF of Chest, Hip, and Abdomen is greater than 5, so we need to re-specify the model.
+```
+
+```{r}
+# Removing Chest and Abdomen
+
+Model4 <- lm(Weight~Height+Hip+Age+Neck+Knee+Ankle+Biceps, data=train)
+summary(Model4)
+vif(Model4)
+```
+
+```{r}
+# Removing Hip and Abdomen
+
+Model5 <- lm(Weight~Height+Chest+Age+Neck+Knee+Ankle+Biceps, data=train)
+summary(Model5)
+vif(Model5)
+```
+
+```{r}
+# Removing Chest, Hip, and Abdomen
+
+Model6 <- lm(Weight~Height+Age+Neck+Knee+Ankle+Biceps, data=train)
+summary(Model6)
+vif(Model6)
+```
+
+```{r}
+# AIC, BIC, and adjusted R^2 value of 3 re-specify model
+
+rname <- c("Model4", "Model5", "Model6")
+cname <- c("AIC", "BIC", "Adjusted R^2")
+
+Model_info <- c(AIC(Model4), BIC(Model4), summary(Model4)$adj.r.squared, AIC(Model5), BIC(Model5), summary(Model5)$adj.r.squared, AIC(Model6), BIC(Model6), summary(Model6)$adj.r.squared)
+
+M <- matrix(Model_info,nrow=3,byrow=TRUE,dimnames=list(rname,cname))
+
+M
+
+# Model 4 is the best model with largest adjusted R^2 value and smallest AIC and BIC values.
+```
+
+```{r, echo=F, eval=T, fig.cap="Bivariate Plots of Weight (lbs) versus each of Height, Hip, Age, Neck, Knee, Ankle, and Biceps", fig.height=20, fig.width=20}
+pairs(train[,c("Weight","Height","Hip","Age","Neck","Knee","Ankle","Biceps")])
+```
+
+```{r}
+# The variable "Age" is flatly distributed and doesn't have a linear relationship with the response variable, so I remove it from my model.
+
+Model7 <- lm(Weight~Height+Hip+Neck+Knee+Ankle+Biceps, data=train)
+```
+
+```{r, fig.height=6, fig.width=6, fig.cap="Residual plots for assessing assumptions of linear model"}
+par(mfrow=c(2,2))
+plot(Model7)
+
+# The assumptions of linear regression are satisfied and there is no need for transformation.
+# We can find that #42 is an influential point and it's in the #27 row.
+
+# Remove #42 to form final data set
+train_final <- train[-27,]
+```
+
+```{r}
+# Fit the model of variables of Model 7 with final train set
+
+Model8 <- lm(Weight~Height+Hip+Neck+Knee+Ankle+Biceps, data=train_final)
+
+# Summary of Model 8
+
+summary(Model8)
+anova(Model8)
+vif(Model8)
+
+```
+
+## Thus, the best model I found is as following, where y is the response variable weight (in lbs), and x1 is height (in cm), x2 is hip circumference (in cm), x3 is neck circumference (in cm), x4 is knee circumference (in cm), x5 is ankle circumference (in cm), and x6 is biceps circumference (in cm).
+$$
+\hat{Y} = -330.7836  +  1.1550{X}_1 + 2.5372{X}_2 + 2.3546{X}_3 + 0.7863{X}_4 + 1.0105{X}_5 + 0.9925{X}_6
+$$
+
+```{r}
+# Use the model we obtained to predict test data set
+test <- na.omit(test)
+Model9 <- lm(Weight~Height+Hip+Neck+Knee+Ankle+Biceps, data=test)
+test_predicted <- predict(Model9, newdata = test, type="response")
+
+# Comparison of Predicted and True Data
+rname <- c("Predicted", "True")
+cname <- c("Min", "1st Qu", "Median", "Mean", "3rd Qu", "Max")
+summary_info <- c(summary(test$Weight), summary(test_predicted))
+
+S <- matrix(summary_info,nrow=2, byrow=TRUE,dimnames=list(rname, cname))
+
+# value of mean square error
+mean((test$Weight - test_predicted)^2)
+```
+
+```{r}
+# Diagnostic Plot of Test Set
+Model9 <- lm(Weight~Height+Hip+Neck+Knee+Ankle+Biceps, data=test)
+summary(Model8)
+summary(Model9)
+
+par(mfrow=c(2,4))
+plot(Model8)
+plot(Model9)
+
+# quite different coefficient of Ankle
+```
+
+
